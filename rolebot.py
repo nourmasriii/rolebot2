@@ -6,7 +6,7 @@ from hijri_converter import convert
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-BOT_TOKEN = "8703353514:AAGl6hz1H8UQxZQmUoU6DMtLII7szwZn0Pc"
+BOT_TOKEN = "YOUR_TOKEN_HERE"
 SUPER_ADMIN = [6115157843]
 
 lists = {"معلمة": [], "قراءة": [], "مستمعة": [], "معتذرة": []}

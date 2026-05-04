@@ -173,7 +173,7 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
 
     elif data == "mark_read":
-        if not any(m.endswith(f"[{user_id}]") for m in lists["قراءة"]):
+        if not any(m.endswith(f"[{user_id}]") for m in lists["تسجيل"]):
             await query.answer("سجّلي نفسك في القراءة أولاً!", show_alert=True)
             return
         if not any(m.endswith(f"[{user_id}]") for m in lists["قرأت"]):

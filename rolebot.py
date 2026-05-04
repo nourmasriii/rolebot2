@@ -56,40 +56,38 @@ def format_lists(chat_id):
     lists = d["lists"]
     miladi, hijri = get_dates()
     status = "🟢 مفتوحة" if d["registration_open"] else "🔴 مغلقة"
-    title_line = f"<b><u>{d['list_title']}</u></b>" if d["list_title"] else ""
-    teacher_line = f"<b><u>{d['teacher_name']}</u></b>" if d["teacher_name"] else ""
+    title_line = f"*__{d['list_title']}__*" if d["list_title"] else ""
+    teacher_line = f"*__{d['teacher_name']}__*" if d["teacher_name"] else ""
 
     readers = lists["تسجيل"]
     read_ids = [m.rsplit('[',1)[1].rstrip(']') for m in lists["قرأت"]]
     readers_text = "\n".join(
-        f"  {i+1}. {m.rsplit('[',1)[0].strip()} {'✅' if m.rsplit('[',1)[1].rstrip(']') in read_ids else ''}"
+        f"  {i+1}\\. {m.rsplit('[',1)[0].strip()} {'✅' if m.rsplit('[',1)[1].rstrip(']') in read_ids else ''}"
         for i,m in enumerate(readers)
     ) if readers else ""
 
     listeners = lists["مستمعة"]
-    listeners_text = "\n".join(f"  {i+1}. {m.rsplit('[',1)[0].strip()}" for i,m in enumerate(listeners)) if listeners else ""
+    listeners_text = "\n".join(f"  {i+1}\\. {m.rsplit('[',1)[0].strip()}" for i,m in enumerate(listeners)) if listeners else ""
 
-    text = (
-        f"📅 {miladi}\n"
-        f"          {hijri}\n"
-        f"    ❀ ──── ✿ ──── ❀\n"
-        f"\n"
-        f"   عنوان الحلقة : {title_line}\n"
-        f"   معلمة الحلقة : {teacher_line}\n"
-        f"\n"
-        f"☜ المسجلات للقراءة:\n"
-        f"{readers_text}\n"
-        f"\n"
-        f"🎧 المستمعات :\n"
-        f"{listeners_text}\n"
-        f"\n"
-        f"    ༶ ༶ ༶ ༶ ༶ ༶ ༶ ༶\n"
-        f"   اللّهمَّ صلِّ وسلِّمْ\n"
-        f"   وبَارِكْ على نبيِّنَا\n"
-        f"          محمد ﷺ\n"
-        f"\n"
-        f"📌 الحالة: {status}"
-    )
+    text = f"""📅 {miladi}
+          {hijri}
+     ❀ ──── ✿ ──── ❀
+
+   عنوان الحلقة : {title_line}
+   معلمة الحلقة : {teacher_line}
+
+☜ المسجلات للقراءة:
+{readers_text}
+
+🎧 المستمعات :
+{listeners_text}
+
+   ·:·:·:·:·:·:·:·
+   اللّهمَّ صلِّ وسلِّمْ
+   وبَارِكْ على نبيِّنَا
+          محمد ﷺ
+
+📌 الحالة: {status}"""
     return text
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -111,7 +109,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await ctx.bot.delete_message(chat_id, d["last_msg"])
         except:
             pass
-    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
     d["last_msg"] = msg.message_id
 
 async def cmd_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -138,7 +136,7 @@ async def cmd_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await ctx.bot.delete_message(chat_id, d["last_msg"])
         except:
             pass
-    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
     d["last_msg"] = msg.message_id
 
 async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -150,7 +148,7 @@ async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(user_id, chat_id, ctx.bot):
         await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
         return
-    await update.message.reply_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+    await update.message.reply_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
 async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -182,7 +180,7 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lists[role].append(f"{name} [{user_id}]")
         if role == "معلمة":
             d["teacher_name"] = name
-        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
     elif data == "mark_read":
         if not any(m.endswith(f"[{user_id}]") for m in lists["تسجيل"]):
@@ -191,12 +189,12 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not any(m.endswith(f"[{user_id}]") for m in lists["قرأت"]):
             lists["قرأت"].append(f"{name} [{user_id}]")
         await query.answer("✅ تم تسجيل قراءتك!", show_alert=True)
-        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
     elif data == "remove_me":
         for key in lists:
             lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
-        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
     elif data.startswith("admin:"):
         if not await is_admin(user_id, chat_id, ctx.bot):
@@ -209,7 +207,7 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         elif action == "open":
             d["registration_open"] = True
             await query.answer("🟢 تم الفتح", show_alert=True)
-        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -227,7 +225,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     try:
-        await ctx.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="HTML")
+        await ctx.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
     except:
         pass
 

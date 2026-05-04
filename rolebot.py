@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 BOT_TOKEN = "8703353514:AAEcMYN3QzZjU8Qz9N53lGu-Ddx_5SKB3FM"
 SUPER_ADMIN = [6115157843]
 
-lists = {"معلمة": [], "قراءة": [], "مستمعة": [], "معتذرة": []}
+lists = {"معلمة": [], "قراءة": [], "مستمعة": [], "قرأت": []}
 registration_open = True
 list_title = ""
 teacher_name = ""
@@ -26,7 +26,7 @@ async def is_admin(user_id, chat_id, bot):
 def main_keyboard():
     keyboard = [
         [InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"), InlineKeyboardButton("📝 تسجيل قراءة", callback_data="join:قراءة")],
-        [InlineKeyboardButton("🎧 مستمعة", callback_data="join:مستمعة"), InlineKeyboardButton("🌸 معتذرة", callback_data="join:معتذرة")],
+        [InlineKeyboardButton("🎧 مستمعة", callback_data="join:مستمعة"), InlineKeyboardButton("✅ قرأت", callback_data="mark_read")],
         [InlineKeyboardButton("✏️ عنوان", callback_data="set_title"), InlineKeyboardButton("❌ حذف", callback_data="remove_me")],
         [InlineKeyboardButton("🔒 غلق", callback_data="admin:close"), InlineKeyboardButton("🔓 فتح", callback_data="admin:open")],
     ]
@@ -48,12 +48,17 @@ def format_lists():
     status = "🟢 مفتوحة" if registration_open else "🔴 مغلقة"
     title_line = list_title if list_title else ""
     teacher_line = teacher_name if teacher_name else ""
+
     readers = lists["قراءة"]
-    readers_text = "\n".join(f"  {i+1}. {m.rsplit('[',1)[0].strip()}" for i,m in enumerate(readers)) if readers else ""
+    read_ids = [m.rsplit('[',1)[1].rstrip(']') for m in lists["قرأت"]]
+    readers_text = "\n".join(
+        f"  {i+1}. {m.rsplit('[',1)[0].strip()} {'✅' if m.rsplit('[',1)[1].rstrip(']') in read_ids else ''}"
+        for i,m in enumerate(readers)
+    ) if readers else ""
+
     listeners = lists["مستمعة"]
     listeners_text = "\n".join(f"  {i+1}. {m.rsplit('[',1)[0].strip()}" for i,m in enumerate(listeners)) if listeners else ""
-    excused = lists["معتذرة"]
-    excused_text = "\n".join(f"  {i+1}. {m.rsplit('[',1)[0].strip()}" for i,m in enumerate(excused)) if excused else "لا توجد معتذرات"
+
     text = f"""📅 {miladi}
           {hijri}
      ❀ ──── ✿ ──── ❀
@@ -67,9 +72,6 @@ def format_lists():
 🎧 المستمعات :
 {listeners_text}
 
-🌸 المعتذرات:
-{excused_text}
-
    ·:·:·:·:·:·:·:·
    اللّهمَّ صلِّ وسلِّمْ
    وبَارِكْ على نبيِّنَا
@@ -82,7 +84,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     if update.effective_chat.type == "private":
-        await update.message.reply_text("👋 أهلاً!\nهذا البوت يعمل فقط بالمجموعة.\nانضمي للمجموعة واضغطي على الأزرار هناك ✅")
+        await update.message.reply_text("👋 أهلاً!\nهذا البوت يعمل فقط بالمجموعة")
         return
     if not await is_admin(user_id, chat_id, ctx.bot):
         await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
@@ -146,6 +148,7 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = query.message.chat.id
     data = query.data
     await query.answer()
+
     if data == "set_title":
         if not await is_admin(user_id, chat_id, ctx.bot):
             await query.answer("🚫 للمشرفين فقط!", show_alert=True)
@@ -155,21 +158,34 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.bot_data["waiting_title_user"] = user_id
         await ctx.bot.send_message(chat_id, "✏️ اكتبي عنوان الحلقة:")
         return
+
     elif data.startswith("join:"):
         if not registration_open:
             await query.answer("🔴 التسجيل مغلق!", show_alert=True)
             return
         role = data.split(":",1)[1]
         for key in lists:
-            lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
+            if key != "قرأت":
+                lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
         lists[role].append(f"{name} [{user_id}]")
         if role == "معلمة":
             teacher_name = name
         await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+
+    elif data == "mark_read":
+        if not any(m.endswith(f"[{user_id}]") for m in lists["قراءة"]):
+            await query.answer("سجّلي نفسك في القراءة أولاً!", show_alert=True)
+            return
+        if not any(m.endswith(f"[{user_id}]") for m in lists["قرأت"]):
+            lists["قرأت"].append(f"{name} [{user_id}]")
+        await query.answer("✅ تم تسجيل قراءتك!", show_alert=True)
+        await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+
     elif data == "remove_me":
         for key in lists:
             lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
         await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+
     elif data.startswith("admin:"):
         if not await is_admin(user_id, chat_id, ctx.bot):
             await query.answer("🚫 للمشرفين فقط!", show_alert=True)

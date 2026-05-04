@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 BOT_TOKEN = "8703353514:AAEcMYN3QzZjU8Qz9N53lGu-Ddx_5SKB3FM"
 SUPER_ADMIN = [6115157843]
 
-lists = {"معلمة": [], "قراءة": [], "مستمعة": [], "قرأت": []}
+lists = {"معلمة": [], "تسجيل": [], "مستمعة": [], "قرأت": []}
 registration_open = True
 list_title = ""
 teacher_name = ""
@@ -25,7 +25,7 @@ async def is_admin(user_id, chat_id, bot):
 
 def main_keyboard():
     keyboard = [
-        [InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"), InlineKeyboardButton("📝 تسجيل اسمي", callback_data="join:قراءة")],
+        [InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"), InlineKeyboardButton("📝 تسجيل اسمي", callback_data="join:تسجيل")],
         [InlineKeyboardButton("🎧 مستمعة", callback_data="join:مستمعة"), InlineKeyboardButton("✅ قرأت", callback_data="mark_read")],
         [InlineKeyboardButton("✏️ عنوان", callback_data="set_title"), InlineKeyboardButton("❌ حذف", callback_data="remove_me")],
         [InlineKeyboardButton("🔒 غلق", callback_data="admin:close"), InlineKeyboardButton("🔓 فتح", callback_data="admin:open")],
@@ -49,7 +49,7 @@ def format_lists():
     title_line = list_title if list_title else ""
     teacher_line = teacher_name if teacher_name else ""
 
-    readers = lists["قراءة"]
+    readers = lists["تسجيل"]
     read_ids = [m.rsplit('[',1)[1].rstrip(']') for m in lists["قرأت"]]
     readers_text = "\n".join(
         f"  {i+1}. {m.rsplit('[',1)[0].strip()} {'✅' if m.rsplit('[',1)[1].rstrip(']') in read_ids else ''}"

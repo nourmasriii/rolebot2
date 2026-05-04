@@ -9,10 +9,19 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 BOT_TOKEN = "8703353514:AAEcMYN3QzZjU8Qz9N53lGu-Ddx_5SKB3FM"
 SUPER_ADMIN = [6115157843]
 
-lists = {"معلمة": [], "تسجيل": [], "مستمعة": [], "قرأت": []}
-registration_open = True
-list_title = ""
-teacher_name = ""
+# كل مجموعة عندها بيانات منفصلة
+chats = {}
+
+def get_chat_data(chat_id):
+    if chat_id not in chats:
+        chats[chat_id] = {
+            "lists": {"معلمة": [], "تسجيل": [], "مستمعة": [], "قرأت": []},
+            "registration_open": True,
+            "list_title": "",
+            "teacher_name": "",
+            "last_msg": None,
+        }
+    return chats[chat_id]
 
 async def is_admin(user_id, chat_id, bot):
     if user_id in SUPER_ADMIN:
@@ -43,11 +52,13 @@ def get_dates():
     hijri = f"{h.day} {months_h[h.month-1]} {h.year}"
     return miladi, hijri
 
-def format_lists():
+def format_lists(chat_id):
+    d = get_chat_data(chat_id)
+    lists = d["lists"]
     miladi, hijri = get_dates()
-    status = "🟢 مفتوحة" if registration_open else "🔴 مغلقة"
-    title_line = list_title if list_title else ""
-    teacher_line = teacher_name if teacher_name else ""
+    status = "🟢 مفتوحة" if d["registration_open"] else "🔴 مغلقة"
+    title_line = d["list_title"] if d["list_title"] else ""
+    teacher_line = d["teacher_name"] if d["teacher_name"] else ""
 
     readers = lists["تسجيل"]
     read_ids = [m.rsplit('[',1)[1].rstrip(']') for m in lists["قرأت"]]
@@ -89,20 +100,20 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(user_id, chat_id, ctx.bot):
         await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
         return
+    d = get_chat_data(chat_id)
     try:
         await update.message.delete()
     except:
         pass
-    if "last_msg" in ctx.bot_data:
+    if d["last_msg"]:
         try:
-            await ctx.bot.delete_message(chat_id, ctx.bot_data["last_msg"])
+            await ctx.bot.delete_message(chat_id, d["last_msg"])
         except:
             pass
-    msg = await ctx.bot.send_message(chat_id, format_lists(), reply_markup=main_keyboard())
-    ctx.bot_data["last_msg"] = msg.message_id
+    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard())
+    d["last_msg"] = msg.message_id
 
 async def cmd_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global registration_open, list_title, teacher_name
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     if update.effective_chat.type == "private":
@@ -111,22 +122,23 @@ async def cmd_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(user_id, chat_id, ctx.bot):
         await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
         return
-    for key in lists:
-        lists[key] = []
-    registration_open = True
-    list_title = ""
-    teacher_name = ""
+    d = get_chat_data(chat_id)
+    for key in d["lists"]:
+        d["lists"][key] = []
+    d["registration_open"] = True
+    d["list_title"] = ""
+    d["teacher_name"] = ""
     try:
         await update.message.delete()
     except:
         pass
-    if "last_msg" in ctx.bot_data:
+    if d["last_msg"]:
         try:
-            await ctx.bot.delete_message(chat_id, ctx.bot_data["last_msg"])
+            await ctx.bot.delete_message(chat_id, d["last_msg"])
         except:
             pass
-    msg = await ctx.bot.send_message(chat_id, "🆕 تم فتح قائمة جديدة!\n\n" + format_lists(), reply_markup=main_keyboard())
-    ctx.bot_data["last_msg"] = msg.message_id
+    msg = await ctx.bot.send_message(chat_id, "🆕 تم فتح قائمة جديدة!\n\n" + format_lists(chat_id), reply_markup=main_keyboard())
+    d["last_msg"] = msg.message_id
 
 async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -137,30 +149,29 @@ async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(user_id, chat_id, ctx.bot):
         await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
         return
-    await update.message.reply_text(format_lists(), reply_markup=main_keyboard())
+    await update.message.reply_text(format_lists(chat_id), reply_markup=main_keyboard())
 
 async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global registration_open, list_title, teacher_name
     query = update.callback_query
     user = query.from_user
     name = user.full_name
     user_id = user.id
     chat_id = query.message.chat.id
     data = query.data
+    d = get_chat_data(chat_id)
+    lists = d["lists"]
     await query.answer()
 
     if data == "set_title":
         if not await is_admin(user_id, chat_id, ctx.bot):
             await query.answer("🚫 للمشرفين فقط!", show_alert=True)
             return
-        ctx.bot_data["waiting_title_chat"] = chat_id
-        ctx.bot_data["waiting_title_msg"] = query.message.message_id
-        ctx.bot_data["waiting_title_user"] = user_id
+        ctx.bot_data[f"waiting_{chat_id}"] = {"msg": query.message.message_id, "user": user_id}
         await ctx.bot.send_message(chat_id, "✏️ اكتبي عنوان الحلقة:")
         return
 
     elif data.startswith("join:"):
-        if not registration_open:
+        if not d["registration_open"]:
             await query.answer("🔴 التسجيل مغلق!", show_alert=True)
             return
         role = data.split(":",1)[1]
@@ -169,22 +180,22 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
         lists[role].append(f"{name} [{user_id}]")
         if role == "معلمة":
-            teacher_name = name
-        await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+            d["teacher_name"] = name
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard())
 
     elif data == "mark_read":
         if not any(m.endswith(f"[{user_id}]") for m in lists["تسجيل"]):
-            await query.answer("سجّلي نفسك في القراءة أولاً!", show_alert=True)
+            await query.answer("سجّلي نفسك أولاً!", show_alert=True)
             return
         if not any(m.endswith(f"[{user_id}]") for m in lists["قرأت"]):
             lists["قرأت"].append(f"{name} [{user_id}]")
         await query.answer("✅ تم تسجيل قراءتك!", show_alert=True)
-        await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard())
 
     elif data == "remove_me":
         for key in lists:
             lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
-        await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard())
 
     elif data.startswith("admin:"):
         if not await is_admin(user_id, chat_id, ctx.bot):
@@ -192,34 +203,32 @@ async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
         action = data.split(":",1)[1]
         if action == "close":
-            registration_open = False
+            d["registration_open"] = False
             await query.answer("🔴 تم الغلق", show_alert=True)
         elif action == "open":
-            registration_open = True
+            d["registration_open"] = True
             await query.answer("🟢 تم الفتح", show_alert=True)
-        await query.edit_message_text(format_lists(), reply_markup=main_keyboard())
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard())
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global list_title
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    if ctx.bot_data.get("waiting_title_chat") != chat_id:
+    key = f"waiting_{chat_id}"
+    if key not in ctx.bot_data:
         return
-    if ctx.bot_data.get("waiting_title_user") != user_id:
+    if ctx.bot_data[key]["user"] != user_id:
         return
-    list_title = update.message.text
-    ctx.bot_data.pop("waiting_title_chat", None)
-    ctx.bot_data.pop("waiting_title_user", None)
+    d = get_chat_data(chat_id)
+    d["list_title"] = update.message.text
+    msg_id = ctx.bot_data.pop(key)["msg"]
     try:
         await update.message.delete()
     except:
         pass
-    msg_id = ctx.bot_data.get("waiting_title_msg")
-    if msg_id:
-        try:
-            await ctx.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=format_lists(), reply_markup=main_keyboard())
-        except:
-            pass
+    try:
+        await ctx.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=format_lists(chat_id), reply_markup=main_keyboard())
+    except:
+        pass
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()

@@ -25,7 +25,7 @@ async def is_admin(user_id, chat_id, bot):
 
 def main_keyboard():
     keyboard = [
-        [InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"), InlineKeyboardButton("📝 تسجيل قراءة", callback_data="join:قراءة")],
+        [InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"), InlineKeyboardButton("📝 تسجيل اسمي", callback_data="join:قراءة")],
         [InlineKeyboardButton("🎧 مستمعة", callback_data="join:مستمعة"), InlineKeyboardButton("✅ قرأت", callback_data="mark_read")],
         [InlineKeyboardButton("✏️ عنوان", callback_data="set_title"), InlineKeyboardButton("❌ حذف", callback_data="remove_me")],
         [InlineKeyboardButton("🔒 غلق", callback_data="admin:close"), InlineKeyboardButton("🔓 فتح", callback_data="admin:open")],

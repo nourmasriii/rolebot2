@@ -4,7 +4,7 @@
 import os
 import json
 from datetime import datetime
-from hijri_converter import convert
+from hijridate import Hijri, Gregorian
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,

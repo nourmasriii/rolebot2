@@ -16,7 +16,7 @@ from telegram.ext import (
 )
 
 # 🔐 التوكن من Render
-BOT_TOKEN = os.getenv("8703353514:AAEcMYN3QzZjU8Qz9N53lGu-Ddx_5SKB3FM")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 SUPER_ADMIN = [6115157843]
 

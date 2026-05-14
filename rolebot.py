@@ -1,49 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import json
 from datetime import datetime
-from hijridate import Hijri, Gregorian
+from hijri_converter import convert
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-# 🔐 التوكن من Render
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
+# الإعدادات الأساسية
+BOT_TOKEN = "8703353514:AAEcMYN3QzZjU8Qz9N53lGu-Ddx_5SKB3FM"
 SUPER_ADMIN = [6115157843]
 
-DATA_FILE = "data.json"
-
-
-# ----------------- حفظ و تحميل البيانات -----------------
-
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-chats = load_data()
-
-
-# ----------------- بيانات المجموعة -----------------
+# مخزن البيانات المؤقت
+chats = {}
 
 def get_chat_data(chat_id):
-    chat_id = str(chat_id)
-
+    """جلب أو إنشاء بيانات المجموعة"""
     if chat_id not in chats:
         chats[chat_id] = {
             "lists": {"معلمة": [], "تسجيل": [], "مستمعة": [], "قرأت": []},
@@ -54,221 +25,260 @@ def get_chat_data(chat_id):
         }
     return chats[chat_id]
 
-
 async def is_admin(user_id, chat_id, bot):
+    """التحقق مما إذا كان المستخدم مشرفاً"""
     if user_id in SUPER_ADMIN:
         return True
     try:
         member = await bot.get_chat_member(chat_id, user_id)
         return member.status in ["administrator", "creator"]
-    except:
+    except Exception:
         return False
 
-
-# ----------------- الأزرار -----------------
-
 def main_keyboard():
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"),
-            InlineKeyboardButton("📝 تسجيل", callback_data="join:تسجيل"),
-        ],
-        [
-            InlineKeyboardButton("🎧 مستمعة", callback_data="join:مستمعة"),
-            InlineKeyboardButton("✅ قرأت", callback_data="mark_read"),
-        ],
-        [
-            InlineKeyboardButton("❌ حذف نفسي", callback_data="remove_me"),
-        ],
-        [
-            InlineKeyboardButton("🔒 غلق", callback_data="admin:close"),
-            InlineKeyboardButton("🔓 فتح", callback_data="admin:open"),
-        ],
-    ])
-
-
-# ----------------- التاريخ -----------------
+    """لوحة أزرار التحكم"""
+    keyboard = [
+        [InlineKeyboardButton("📚 معلمة", callback_data="join:معلمة"), InlineKeyboardButton("📝 تسجيل اسمي", callback_data="join:تسجيل")],
+        [InlineKeyboardButton("🎧 مستمعة", callback_data="join:مستمعة"), InlineKeyboardButton("✅ قرأت", callback_data="mark_read")],
+        [InlineKeyboardButton("✏️ عنوان", callback_data="set_title"), InlineKeyboardButton("❌ حذف", callback_data="remove_me")],
+        [InlineKeyboardButton("🔒 غلق", callback_data="admin:close"), InlineKeyboardButton("🔓 فتح", callback_data="admin:open")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_dates():
+    """الحصول على التاريخ الهجري والميلادي"""
     now = datetime.now()
-
-    days = ["الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت","الأحد"]
-    months_m = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"]
-    months_h = ["محرم","صفر","ربيع الأول","ربيع الآخر","جمادى الأولى","جمادى الآخرة","رجب","شعبان","رمضان","شوال","ذو القعدة","ذو الحجة"]
-
+    days = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+    months_m = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+    months_h = ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"]
+    
     day = days[now.weekday()]
     miladi = f"{day} {now.day} {months_m[now.month-1]} {now.year}"
-
     h = convert.Gregorian(now.year, now.month, now.day).to_hijri()
     hijri = f"{h.day} {months_h[h.month-1]} {h.year}"
-
     return miladi, hijri
 
-
-# ----------------- عرض القائمة -----------------
-
 def format_lists(chat_id):
+    """تنسيق نص القائمة الذي يظهر للمستخدمين"""
     d = get_chat_data(chat_id)
     lists = d["lists"]
-
     miladi, hijri = get_dates()
-
     status = "🟢 مفتوحة" if d["registration_open"] else "🔴 مغلقة"
+    title_line = f"*__{d['list_title']}__*" if d["list_title"] else ""
+    teacher_line = f"*__{d['teacher_name']}__*" if d["teacher_name"] else ""
 
-    title = d["list_title"]
-    teacher = d["teacher_name"]
-
+    # تنسيق قائمة المسجلات للقراءة
     readers = lists["تسجيل"]
-
-    read_ids = [m.rsplit('[',1)[1].rstrip(']') for m in lists["قرأت"]]
-
+    read_ids = [m.rsplit('[', 1)[1].rstrip(']') for m in lists["قرأت"]]
     readers_text = "\n".join(
-        f"{i+1}. {m.rsplit('[',1)[0]} {'✅' if m.rsplit('[',1)[1].rstrip(']') in read_ids else ''}"
+        f"  {i+1}\\. {m.rsplit('[', 1)[0].strip()} {'✅' if m.rsplit('[', 1)[1].rstrip(']') in read_ids else ''}"
         for i, m in enumerate(readers)
-    ) if readers else "—"
+    ) if readers else ""
 
+    # تنسيق قائمة المستمعات
     listeners = lists["مستمعة"]
+    listeners_text = "\n".join(f"  {i+1}\\. {m.rsplit('[', 1)[0].strip()}" for i, m in enumerate(listeners)) if listeners else ""
 
-    listeners_text = "\n".join(
-        f"{i+1}. {m.rsplit('[',1)[0]}"
-        for i, m in enumerate(listeners)
-    ) if listeners else "—"
+    text = f"""📅 {miladi}
+          {hijri}
+     ❀ ──── ✿ ──── ❀
 
-    return f"""
-📅 {miladi}
-{hijri}
+   عنوان الحلقة : {title_line}
+   معلمة الحلقة : {teacher_line}
 
-📌 عنوان الحلقة: {title}
-👩‍🏫 المعلمة: {teacher}
-
-☜ المسجلات:
+☜ المسجلات للقراءة:
 {readers_text}
 
-🎧 المستمعات:
+🎧 المستمعات :
 {listeners_text}
 
-📌 الحالة: {status}
-"""
+   ·:·:·:·:·:·:·:·
+   اللّهمَّ صلِّ وسلِّمْ
+   وبَارِكْ على نبيِّنَا
+          محمد ﷺ
 
-
-# ----------------- START -----------------
+📌 الحالة: {status}"""
+    return text
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type == "private":
-        await update.message.reply_text("هذا البوت يعمل داخل المجموعة فقط")
-        return
-
+    """أمر البداية"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-
-    if not await is_admin(user_id, chat_id, ctx.bot):
-        await update.message.reply_text("للمشرفين فقط")
+    if update.effective_chat.type == "private":
+        await update.message.reply_text("👋 أهلاً!\nهذا البوت يعمل فقط بالمجموعة")
         return
-
+    if not await is_admin(user_id, chat_id, ctx.bot):
+        await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
+        return
+    
     d = get_chat_data(chat_id)
-
-    msg = await ctx.bot.send_message(
-        chat_id,
-        format_lists(chat_id),
-        reply_markup=main_keyboard()
-    )
-
+    try:
+        await update.message.delete()
+    except:
+        pass
+    
+    if d["last_msg"]:
+        try:
+            await ctx.bot.delete_message(chat_id, d["last_msg"])
+        except:
+            pass
+    
+    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
     d["last_msg"] = msg.message_id
-    save_data(chats)
 
-
-# ----------------- RESET (قائمة جديدة) -----------------
-
-async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def cmd_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """أمر تصفير القائمة وبدء حلقة جديدة"""
     user_id = update.effective_user.id
-    chat_id = str(update.effective_chat.id)
-
-    if not await is_admin(user_id, chat_id, ctx.bot):
-        await update.message.reply_text("🚫 للمشرف فقط")
+    chat_id = update.effective_chat.id
+    if update.effective_chat.type == "private":
+        await update.message.reply_text("🚫 هذا الأمر يعمل بالمجموعة فقط!")
         return
+    if not await is_admin(user_id, chat_id, ctx.bot):
+        await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
+        return
+    
+    d = get_chat_data(chat_id)
+    for key in d["lists"]:
+        d["lists"][key] = []
+    d["registration_open"] = True
+    d["list_title"] = ""
+    d["teacher_name"] = ""
+    
+    try:
+        await update.message.delete()
+    except:
+        pass
+    
+    if d["last_msg"]:
+        try:
+            await ctx.bot.delete_message(chat_id, d["last_msg"])
+        except:
+            pass
+            
+    msg = await ctx.bot.send_message(chat_id, format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
+    d["last_msg"] = msg.message_id
 
-    chats[chat_id]["lists"] = {
-        "معلمة": [],
-        "تسجيل": [],
-        "مستمعة": [],
-        "قرأت": []
-    }
-
-    chats[chat_id]["list_title"] = ""
-    chats[chat_id]["teacher_name"] = ""
-
-    save_data(chats)
-
-    await update.message.reply_text("🧹 تم إنشاء قائمة جديدة")
-
-
-# ----------------- الأزرار -----------------
+async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """أمر إرسال القائمة الحالية (للمشرفين)"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    if update.effective_chat.type == "private":
+        await update.message.reply_text("🚫 هذا الأمر يعمل بالمجموعة فقط!")
+        return
+    if not await is_admin(user_id, chat_id, ctx.bot):
+        await update.message.reply_text("🚫 هذا الأمر للمشرفين فقط!")
+        return
+    await update.message.reply_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
 async def handle_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """معالجة الضغط على الأزرار"""
     query = update.callback_query
-    await query.answer()
-
     user = query.from_user
-    user_id = user.id
     name = user.full_name
-    chat_id = str(query.message.chat.id)
-
+    user_id = user.id
+    chat_id = query.message.chat.id
+    data = query.data
     d = get_chat_data(chat_id)
     lists = d["lists"]
+    await query.answer()
 
-    if query.data.startswith("join:"):
-        role = query.data.split(":")[1]
-
-        for k in lists:
-            if k != "قرأت":
-                lists[k] = [m for m in lists[k] if not m.endswith(f"[{user_id}]")]
-
-        lists[role].append(f"{name} [{user_id}]")
-
-    elif query.data == "remove_me":
-        for k in lists:
-            lists[k] = [m for m in lists[k] if not m.endswith(f"[{user_id}]")]
-
-    elif query.data == "mark_read":
-        if not any(m.endswith(f"[{user_id}]") for m in lists["تسجيل"]):
-            await query.answer("سجلي نفسك أولاً", show_alert=True)
+    if data == "set_title":
+        if not await is_admin(user_id, chat_id, ctx.bot):
+            await query.answer("🚫 للمشرفين فقط!", show_alert=True)
             return
+        ctx.bot_data[f"waiting_{chat_id}"] = {"msg": query.message.message_id, "user": user_id}
+        await ctx.bot.send_message(chat_id, "✏️ اكتبي عنوان الحلقة:")
+        return
 
+    elif data.startswith("join:"):
+        if not d["registration_open"]:
+            await query.answer("🔴 التسجيل مغلق حالياً!", show_alert=True)
+            return
+        role = data.split(":", 1)[1]
+        # إزالة المستخدم من أي قوائم أخرى قبل الإضافة لتجنب التكرار
+        for key in lists:
+            if key != "قرأت":
+                lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
+        
+        lists[role].append(f"{name} [{user_id}]")
+        if role == "معلمة":
+            d["teacher_name"] = name
+            
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
+
+    elif data == "mark_read":
+        if not any(m.endswith(f"[{user_id}]") for m in lists["تسجيل"]):
+            await query.answer("يجب التسجيل في القائمة أولاً قبل الضغط على 'قرأت'!", show_alert=True)
+            return
         if not any(m.endswith(f"[{user_id}]") for m in lists["قرأت"]):
             lists["قرأت"].append(f"{name} [{user_id}]")
+        await query.answer("✅ تم تسجيل قراءتك!", show_alert=True)
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
-    elif query.data == "admin:close":
+    elif data == "remove_me":
+        for key in lists:
+            lists[key] = [m for m in lists[key] if not m.endswith(f"[{user_id}]")]
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
+
+    elif data.startswith("admin:"):
         if not await is_admin(user_id, chat_id, ctx.bot):
+            await query.answer("🚫 للمشرفين فقط!", show_alert=True)
             return
-        d["registration_open"] = False
+        action = data.split(":", 1)[1]
+        if action == "close":
+            d["registration_open"] = False
+            await query.answer("🔴 تم غلق التسجيل", show_alert=True)
+        elif action == "open":
+            d["registration_open"] = True
+            await query.answer("🟢 تم فتح التسجيل", show_alert=True)
+        await query.edit_message_text(format_lists(chat_id), reply_markup=main_keyboard(), parse_mode="MarkdownV2")
 
-    elif query.data == "admin:open":
-        if not await is_admin(user_id, chat_id, ctx.bot):
-            return
-        d["registration_open"] = True
+async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """معالجة الرسائل النصية (لتغيير عنوان الحلقة)"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    key = f"waiting_{chat_id}"
+    
+    if key not in ctx.bot_data:
+        return
+    if ctx.bot_data[key]["user"] != user_id:
+        return
+    
+    d = get_chat_data(chat_id)
+    d["list_title"] = update.message.text
+    msg_id = ctx.bot_data.pop(key)["msg"]
+    
+    try:
+        await update.message.delete()
+    except:
+        pass
+    
+    try:
+        await ctx.bot.edit_message_text(
+            chat_id=chat_id, 
+            message_id=msg_id, 
+            text=format_lists(chat_id), 
+            reply_markup=main_keyboard(), 
+            parse_mode="MarkdownV2"
+        )
+    except:
+        pass
 
-    save_data(chats)
-
-    await query.edit_message_text(
-        format_lists(chat_id),
-        reply_markup=main_keyboard()
-    )
-
-
-# ----------------- تشغيل -----------------
-
-async def main():
+def main():
+    """تشغيل البوت"""
     app = Application.builder().token(BOT_TOKEN).build()
-
+    
+    # تعريف الأوامر
     app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("reset", cmd_reset))
+    app.add_handler(CommandHandler("new", cmd_new))
+    app.add_handler(CommandHandler("list", cmd_list))
+    
+    # معالجة التفاعلات
     app.add_handler(CallbackQueryHandler(handle_button))
-
-    print("🤖 البوت شغال")
-
-    await app.run_polling()
-
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    
+    print("🤖 البوت شغّال الآن...")
+    app.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()

@@ -1,2 +1,2 @@
 python-telegram-bot==20.8
-hijri-converter
+hijridate==2.3.0
